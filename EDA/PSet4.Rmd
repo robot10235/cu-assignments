@@ -1,0 +1,115 @@
+---
+title: "PSet 4"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+# this prevents package loading message from appearing in the rendered version of your problem set
+knitr::opts_chunk$set(warning = FALSE, message = FALSE,
+                      echo = TRUE)
+```
+
+Note: Grading is based both on your graphs and verbal explanations. Follow all best practices *as discussed in class*, including choosing appropriate parameters for all graphs. *Do not expect the assignment questions to spell out precisely how the graphs should be drawn. Sometimes guidance will be provided, but the absense of guidance does not mean that all choices are ok.*
+
+IMPORTANT: THIS TEMPLATE DOES NOT INCLUDE THE SAMPLE GRAPHS THAT APPEAR IN THE .HTML VERSION OF THE ASSIGNMENT SO BE SURE TO VIEW THAT FILE AS WELL.
+
+### 1. `mycars` missing patterns
+
+Create a missing values plot for the `mycars` dataset created below (slightly different from the one in the lecture slides). Your plot should be in the style of `extracat::visna()` (no longer available on CRAN) using **ggplot2** to create the main plot and two side plots and **patchwork** to put them together. It should show accurately: missing patterns,  counts for missing by column and missing by pattern, and make it clear which row respresents complete cases. Bars in the side plots should be sorted and correspond to the rows and columns of the main plot. An example is provided though the aesthetics of your plot do not have to conform precisely to the example. Some code is provided to get you started with finding missing patterns. (Keep in mind that in the next question you will be turning this code into a function so to save yourself time later on write as generically as possible.)
+
+```{r}
+library(tidyverse)
+library(patchwork)
+
+# Add NAs to mtcars dataset
+set.seed(5702)
+mycars <- mtcars
+mycars[1:25, "gear"] <- NA
+mycars[10:20, 3:5] <- NA
+for (i in 1:10) mycars[sample(32,1), sample(11,1)] <- NA
+
+missing_patterns <- data.frame(is.na(mycars)) %>%
+  group_by_all() %>%
+  count(name = "count", sort = TRUE) %>%
+  ungroup()
+
+```
+
+```{r}
+test2 <- colSums(is.na(mycars)) %>%
+    sort(decreasing = TRUE)
+test2 <- as.data.frame(test2)
+test2 <- rownames_to_column(test2)
+level2 <- test2$rowname
+
+test <- missing_patterns[c(1,2,3,4,5,6,7,8,9,10,11)] %>% 
+  rownames_to_column("id") %>%
+  gather(key, value, -id)
+
+test$key <- factor(test$key, levels = level2)
+
+ggplot(test, aes(x = key, y = fct_rev(id), fill = value)) +
+  geom_tile(color = "white") + 
+  ggtitle("mtcars with NAs added") +
+  theme(legend.position = "none") +
+  theme_bw()
+```
+
+```{r}
+ggplot(missing_patterns, aes(x=missing_patterns.rowname, y=count)) +
+  geom_col()
+```
+
+```{r}
+test2 <- colSums(is.na(mycars)) %>%
+    sort(decreasing = TRUE)
+test2 <- as.data.frame(test2)
+test2 <- rownames_to_column(test2)
+level2 <- test2$rowname
+
+ggplot(test2, aes(x=fct_reorder(rowname, -test2), y=test2)) +
+    geom_col()
+```
+
+**Hints:**
+
+* You can use this code to find and count the missing patterns:
+```{r}
+missing_patterns <- data.frame(is.na(mycars)) %>%
+  group_by_all() %>%
+  count(name = "count", sort = TRUE) %>%
+  ungroup()
+```
+
+* To highlight the complete cases row you need a different fill scale than the one used to show missing vs. non-missing in the main plot (purple and grey in the example). This is a little tricky since you're only allowed one fill scale in **ggplot2**. You can either use `alpha` to control the highlight with `scale_alpha_manual(values = ...)` or use the **ggnewscale** package which provides for multiple fill scales in the same graph.
+
+
+### 2. Missing value plot function
+
+a) Create a function for creating missing plots based on your code from question 1. It should provide an option to show either missing counts or missing percent. The percent option for `mycars` is shown below.
+
+You either put the function code in a separate `.R` file or include it in the `.Rmd` file.
+
+b) Show the output for both options (counts / percent) for the `economics` dataset in the **ggplot2** package. (This is a test to see if your function works if there are no missing values.)
+
+c) Show the output for both options (counts / percent) for the `HollywoodMovies2011` dataset in the **Lock5withR** package. You can shorten the column names so they don't overlap in the plot.
+
+
+### 3. Setup your GitHub final project repo
+
+a) Set up your final project repository following the [EDAVproject template](https://github.com/jtr13/EDAVtemplate). You can either choose one team member's GitHub account, or create an organization to house the final project. *Be sure to follow all of the steps in the README so your bookdown book renders with your information, not the placeholders in the template.* Edit the link below to point to your rendered book:
+
+https://[ACCOUNT NAME].github.io/[REPO NAME]
+
+b) Make sure that all team members have write access to the repository and have practiced making contributions. Edit the link below to point to your contributors page, showing that all team members have made contributions to the repo (Note that we do not have the ability to see who has write access, only who has contributed):
+
+https://github.com/[ACCOUNT NAME]/[REPO NAME]/graphs/contributors
+
+c) Discuss a plan for dividing up the work for the final project and briefly summarize what each person will do.
+
+### 4. Missing values chapter
+
+Write a first draft of the missing values chapter of your final project. You do not have to include all of the data you use in the final project. Choose one file and analyze it using techniques discussed in class for missing values. Include a plot using your function from Q2 as well as verbal interpretation of the plot. Edit this link to point to your chapter:
+
+https://[ACCOUNT NAME].github.io/[REPO NAME]/missing-values.html

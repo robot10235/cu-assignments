@@ -1,0 +1,82 @@
+---
+title: "PSet 2"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+# this prevents package loading message from appearing in the rendered version of your problem set
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+Note: Grading is based both on your graphs and verbal explanations. Follow all best practices *as discussed in class*, including choosing appropriate parameters for all graphs. *Do not expect the assignment questions to spell out precisely how the graphs should be drawn. Sometimes guidance will be provided, but the absense of guidance does not mean that all choices are ok.*
+
+Read *Graphical Data Analysis with R*, Ch. 4, 5
+
+### 1. House features 
+
+[5 points]
+
+Data: *ames* in the **openintro** package
+
+a) Create a frequency bar chart for the roof styles of the properties.
+
+
+b) Create a frequency bar chart for the variable representing the month in which the property was sold.
+
+
+c) List all the factor variables that have `"Ex" "Fa" "Gd" "Po" "TA"` as levels. 
+
+d) Create faceted bar charts using `facet_wrap()` to display the frequency distribution of all variables from part c). (Hint: transform the data first with `pivot_longer()`)
+
+
+### 2. Pet names
+
+[12 points]
+
+Data: *seattlepets* in the **openintro** package
+
+a) Create separate Cleveland dot plots for the 30 most popular dog names and 30 most popular cat names.
+
+b) Use a Cleveland dot plot to display the 30 names that are the most "dog" measured by the proportion of all animals with that name that are dogs. (You can remove goat and pig names from the dataset.) *Clearly state any decisions you make about what to include and not include and explain your reasoning.*
+
+c) Find the 30 most popular names for dogs and cats combined, and create a multidot Cleveland dot plot showing the counts for dogs, cats, and total for each of these 30 names. (One color for dogs, one color for cats, one color for total.) Order the dots by the total count.
+
+d) Create a scatterplot of popular cat names vs. popular dog names. Clearly some names are more "dog" names and some are more "cat" names. Decide on a metric for defining what is a "dog" name, a "cat" name, and a "neutral" name and state it explicity. What is your metric?
+
+e) Create a new variable for type of name ("dog", "cat" or "neutral") and redraw the scatterplot coloring the points by this variable. Label individual points as you see fit (don't label all of them.)
+
+f) What are your most interesting discoveries from this dataset?
+
+### 3. House sizes and prices
+
+[6 points]
+
+Data: *ames* in the **openintro** package
+
+For all, adjust parameters to the levels that provide the best views of the data.
+
+Draw four plots of `price` vs. `area` with the following variations:
+
+a) Scatterplot -- adjust point size and `alpha`.
+
+
+b) Scatterplot with density contour lines
+
+c) Hexagonal heatmap of bin counts
+
+d) Square heatmap of bin counts
+
+e) Describe noteworthy features of the data, using the “Movie ratings” example on page 82 (last page of Section 5.3) as a guide.
+
+### 4. Correlations
+
+[7 points]
+
+Data: *ames* in the **openintro** package
+
+a) Recreate the scatterplot from part 3 (`price` vs. `area`) this time faceting on `Neighborhood` (use `facet_wrap()`. Add best fitting lines and sort the facets by the slope of the best fitting line from low to high. (Use `lm()` to get the slopes.)
+
+b) Is the slope higher in neighborhoods with higher mean housing prices? Present graphical evidence and interpret in the context of this data.
+
+c) Repeat parts a) with the following adjustment: order the faceted plots by $R^2$ from the linear regression of `price` on `area` by `Neighborhood`. Is the $R^2$ higher in neighborhoods with higher mean housing prices? Are the results the same for slope and $R^2$? Explain using examples from the graphs.

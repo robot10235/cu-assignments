@@ -1,0 +1,337 @@
+---
+title: "Problem Set 1"
+author: "Yuping Ding, Yan Gong"
+date: 09/18/2021
+output: html_document
+---
+
+```{r setup, include = FALSE}
+# this prevents package loading message from appearing in the rendered version of your problem set
+knitr::opts_chunk$set(warning = FALSE,
+                      message = FALSE)
+```
+
+Note: Grading is based both on your graphs and verbal explanations. Follow all best practices as discussed in class, including choosing appropriate parameters for all graphs. *Do not expect the assignment questions to spell out precisely how the graphs should be drawn. Sometimes guidance will be provided, but the absense of guidance does not mean that all choices are ok.*
+
+Read *Graphical Data Analysis with R*, Ch. 3
+
+
+### Preparation
+
+```{r}
+# Clean up workspace environment
+rm(list = ls())
+
+# Call packages used for the assignment
+library(openintro)
+library(agridat)
+library(boot)
+library(ggplot2)
+library(ggh4x)
+library(plyr)
+library(tidyverse)
+library(data.table)
+library(ggridges)
+```
+
+
+### 1. Fast Food
+
+[6 points]
+
+Data: *fastfood* in **openintro** package
+
+a)  Draw multiple horizontal boxplots of `calories`, by `restaurant`. What do you observe?
+
+Answer: 
+
+```{r}
+ggplot(fastfood, aes(calories, 
+                     reorder(restaurant, -calories, median))) + 
+  geom_boxplot() + 
+  ylab("restaurant") + 
+  theme_bw()
+```
+
+From multiple horizontal boxplots of `calories`, we could observe that the medians of calories for fastfoods from all restaurants in the *fastfood* dataset are near 500 calories, and the item with highest calories is from Mcdonalds (about 2500 calories). 
+
+b)  Draw histograms, faceted by `restaurant`, for the same data. Describe one insight that was not visible in the boxplots.
+
+Answer: 
+
+```{r fig.width = 15, fig.height = 8}
+ggplot(fastfood) + 
+  geom_histogram(aes(calories, fill = restaurant), bins = 25) + 
+  facet_wrap(~restaurant, ncol = 4) + 
+  theme_bw()
+```
+
+One possible insight that could be observed from these histograms but not visible in the boxplots might be the skewness of distribution of fastfood data for each restaurant. 
+
+c) Do crispy items have more calories than grilled items? Create a new variable, `cooktype` that is "Crispy" if the item name contains "Crispy" and "Grilled" if it contains "Grilled". (Leave out any items that contain both or neither.) Hint: useful functions: `filter()`, `str_detect()`, `xor()`. Next plot overlapping density curves of `calories`, one curve for Crispy and one curve for Grilled, on a single set of axes. Each curve should be a different color. What do you observe? 
+
+Answer: 
+
+```{r}
+# Extract subset of crispy and grilled items
+fastfood <- 
+  fastfood %>%
+  mutate(cooktype = case_when(
+    str_detect(item, "Crispy") & str_detect(item, "Grilled") ~ "NA", 
+    str_detect(item, "Crispy") ~ "Crispy",
+    str_detect(item, "Grilled") ~ "Grilled",
+    ))
+fastfood1 = subset(fastfood, cooktype != "NA")
+
+# Draw density plots
+ggplot(fastfood1, aes(calories, fill = cooktype)) + 
+  geom_density(alpha = 0.4, color = NA) + 
+  theme_bw()
+```
+
+Yes, crispy items have more calories than grilled items, since most of values of densities of calories for crispy items are higher than grilled items, which indicates that both median and mean of calories of crispy items should be higher than grilled items. 
+
+### 2. Temporal Lobes
+
+[4 points]
+
+Data: *mtl* in **openintro** package
+
+a)  Draw two histograms--one with base R and the other with **ggplot2**--of the variable representing the thickness of the subiculum subregion of the medial temporal lobe without setting any parameters. What is the default method each uses to determine the number of bins? (For base R, show the calculation.) Which do you think is a better choice for this dataset and why? 
+
+Answer: 
+
+According to the R documentation, the default setting of parameter breaks is 'Sturges', which means that a character string naming an algorithm is used to compute the number of cells. Sturges' rule can be written as $m = 1 + 3.322 \space lg{N}$, in which m is the number of cells and N is the total count. The default setting of bins in ggplot2 is 30, and it is not suitable to this data, because it has too many classes and we can not find the distribution. Therefore, base R is a better choice.
+
+$$
+m = 1 + 3.322 * lg{35} = 6.128 \approx 7
+$$
+
+```{r}
+# Check number of cells used in base R
+nclass.Sturges(mtl$asubic)
+
+# Compute classes 
+pretty(mtl$asubic)
+
+# Draw histograms
+hist(mtl$asubic, main = "base R", xlab = "asubic")
+gg_asubic <- ggplot(mtl) + 
+  geom_histogram(aes(asubic)) + 
+  theme_bw()
+gg_asubic + 
+  ggtitle("ggplot2") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+b) Draw two histograms of the `age` variable with boundaries at multiples of 5, one right closed and one right open. Every boundary should be labeled (45, 50, 55, etc.)
+  
+Answer: 
+
+```{r}
+ggplot(mtl) + 
+  geom_histogram(aes(age),
+                 binwidth = 5,
+                 boundary = 5,
+                 closed = "right",
+                 fill = "white", 
+                 color = 'black') + 
+  scale_x_continuous(breaks = c(45, 50, 55, 60, 65, 70, 75)) +               labs(title = "left open right closed")
+ggplot(mtl) + 
+  geom_histogram(aes(age),
+                 binwidth = 5,
+                 boundary = 5,
+                 closed = "left",
+                 fill = "white", 
+                 color = 'black') + 
+  scale_x_continuous(breaks = c(45, 50, 55, 60, 65, 70, 75)) +               labs(title = "left closed right open")
+```
+
+c)  Adjust parameters--the same for both--so that the right open and right closed versions become identical. Explain your strategy. 
+
+Answer: 
+
+```{r}
+ggplot(mtl) + 
+  geom_histogram(aes(age),
+                 binwidth = 5,
+                 closed = "right",
+                 fill = "white", 
+                 color = 'black') + 
+  scale_x_continuous(breaks = c(42.5, 47.5, 52.5, 57.5, 62.5, 67.5, 72.5, 77.5)) +               
+  labs(title = "left open right closed")
+ggplot(mtl) + 
+  geom_histogram(aes(age),
+                 binwidth = 5,
+                 closed = "left",
+                 fill = "white", 
+                 color = 'black') + 
+  scale_x_continuous(breaks = c(42.5, 47.5, 52.5, 57.5, 62.5, 67.5, 72.5, 77.5)) +               
+  labs(title = "left closed right open")
+```
+
+The strategy we used to adjust the parameters is to set breaks near boundaries as 42.5 and 77.5 (outside the range and away from boundaries) instead of 45 and 75 (on boundaries) to make both left and right boundaries open. 
+
+### 3. Soybeans
+
+[8 points]
+
+Data: *australia.soybean* in **agridat** package
+
+a)  Use QQ (quantile-quantile) plots with theoretical normal lines to compare `yield` for the four locations (`loc`). For which location does the `yield` appear to be closest to a normal distribution?
+
+Answer: 
+
+```{r}
+# Extract dataset from agridat package
+as <- australia.soybean
+
+# Draw QQ plots with theoretical normal lines
+ggplot(as, aes(sample = yield, color = loc)) +
+  geom_qq() + 
+  geom_qq_line() + 
+  facet_wrap(~loc) + 
+  theme_classic() + 
+  labs(title = "QQ Plots of yields for Four Locations", 
+       x = "Theoretical Quantitles", 
+       y = "Yield"
+       )
+```
+
+At Lawes, the 'yield' appears to be closest to a normal distribution. 
+
+b)  Draw density histograms with density curves and theoretical normal curves overlaid of `yield` for the four locations. 
+
+Answer: 
+
+```{r}
+# Draw density histograms
+ggplot(as, aes(x = yield, fill = loc)) + 
+  geom_histogram(bins = 20, aes(x = yield, y = ..density..)) + 
+  facet_wrap(~loc) + 
+  stat_theodensity(color = "Red") + 
+  geom_density(color = "Blue", fill = NA) + 
+  theme_classic()
+```
+
+c)  Perform Shapiro-Wilk tests for normality for `yield` for each location using the `shapiro.test()` function and interpret the results.
+
+Answer: 
+
+```{r}
+# Extract subsets
+L <- setDT(as)[australia.soybean$loc == "Lawes"]
+B <- setDT(as)[australia.soybean$loc == "Brookstead"]
+N <- setDT(as)[australia.soybean$loc == "Nambour"]
+R <- setDT(as)[australia.soybean$loc == "RedlandBay"]
+
+# Perform Shapiro-Wilk tests
+shapiro.test(L$yield)
+shapiro.test(B$yield)
+shapiro.test(N$yield)
+shapiro.test(R$yield)
+```
+
+Since the W values of Shapiro-Wilk tests of `yield` for locations at Lawes and Brookstead are the two highest and only the p-values of them are higher than 0.05, which means that the null hypothesis of the normality of `yield` for these two locations (they are normally distributed) cannot be rejected. 
+
+d)  Did all of the methods for testing for normality (a, b, and c) produce the same results? Briefly explain.
+
+Answer: 
+
+In general, all of the methods for testing for normality produce the same results, as the QQ plots matching with theoretical normal lines, density curves matching with theoretical normal curves, and the p-values being higher than 0.05 for both location Lawes and Brookstead. However, without Shapiro-Wilk test, the normality of `yield` for location of Brookstead could not be determined in QQ plot, while the normality of `yield` for location of Lawes could not be determined with only one density plot. 
+
+### 4. Doctors
+
+[4 points]
+
+Data: *breslow* dataset in **boot** package
+
+Draw two histograms of the age at death for deaths attributed to coronary artery disease among doctors in the *breslow* dataset, one for smokers and one for non-smokers. (Hint: read the help file `?breslow` to understand the data.)
+
+Answer: 
+
+```{r}
+# Set facet labels
+breslow <- boot::breslow
+breslow$smoke <- revalue(as.character(breslow$smoke), c("0" = "Non-smokers", "1" = "Smokers"))
+
+# Draw histograms
+ggplot(breslow, aes(age, y)) + 
+  geom_bar(stat = "identity") + 
+  facet_wrap(~smoke) + 
+  ylab("deaths") + 
+  theme_classic()
+```
+
+### 5. Loans
+
+[8 points]
+
+Data: *loans_full_schema* in **openintro** package
+
+a) Use appropriate techniques to describe the distribution of the `loan_amount` variable noting interesting features.
+
+Answer: 
+
+```{r fig.width = 15, fig.height = 8}
+# Extract dataset from package
+loans <- loans_full_schema
+
+# Draw QQ plots with theoretical normal lines
+ggplot(loans, aes(sample = loan_amount, color = loan_purpose)) +
+  geom_qq() + 
+  geom_qq_line() + 
+  facet_wrap(~loan_purpose) + 
+  theme_bw() + 
+  labs(title = "QQ Plots of Loan Amount for Purposes", 
+       x = "Theoretical Quantitles", 
+       y = "Loan Amount"
+       )
+# Draw density histograms
+ggplot(loans, aes(x = loan_amount, fill = loan_purpose)) + 
+  geom_histogram(bins = 20, aes(x = loan_amount, y = ..density..)) + 
+  facet_wrap(~loan_purpose) + 
+  stat_theodensity(color = "Red") + 
+  geom_density(color = "Blue", fill = NA) + 
+  theme_bw()
+
+# Perform Chi-square test
+total_loan_amount <- 
+  loans %>%
+  group_by(loan_purpose) %>%
+  summarise(total = sum(loan_amount))
+chisq.test(total_loan_amount$total)
+```
+
+b) Create horizontal boxplots of `loan_amount`, one for each level of `loan_purpose`. 
+
+Answer: 
+
+```{r}
+ggplot(loans, aes(loan_amount, 
+                  reorder(loan_purpose, -loan_amount, median))) + 
+  geom_boxplot() + 
+  ylab("loan_purpose") + 
+  theme_bw()
+```
+
+c) Create ridgeline plots (package **ggridges**) for the same data as in b).
+
+Answer: 
+
+```{r}
+ggplot(loans, 
+       aes(loan_amount, 
+           reorder(loan_purpose, -loan_amount, median))) + 
+  geom_density_ridges(color = "Navy", 
+                      fill = "Navy", 
+                      alpha = 0.4) + 
+  ylab("loan_purpose") + 
+  theme_bw()
+```
+
+d) Compare b) and c). Which do you think is more effective for this data and why?
+
+Answer: 
+
+We consider ridgeline plots as a more effective approach for this data since ridgeline plots could represent distribution and variation of `loan_amount` for each purpose of loan (`loan_purpose`) more precisely than boxplots. 

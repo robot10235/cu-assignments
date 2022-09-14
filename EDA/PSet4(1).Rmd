@@ -1,0 +1,345 @@
+---
+title: "PSet 4"
+output: 
+html_document: default
+---
+
+```{r setup, include = FALSE}
+# this prevents package loading message from appearing in the rendered version of your problem set
+knitr::opts_chunk$set(warning = FALSE, message = FALSE,
+                      echo = TRUE)
+```
+
+Note: Grading is based both on your graphs and verbal explanations. Follow all best practices *as discussed in class*, including choosing appropriate parameters for all graphs. *Do not expect the assignment questions to spell out precisely how the graphs should be drawn. Sometimes guidance will be provided, but the absense of guidance does not mean that all choices are ok.*
+
+IMPORTANT: THIS TEMPLATE DOES NOT INCLUDE THE SAMPLE GRAPHS THAT APPEAR IN THE .HTML VERSION OF THE ASSIGNMENT SO BE SURE TO VIEW THAT FILE AS WELL.
+
+### 1. `mycars` missing patterns
+
+Create a missing values plot for the `mycars` dataset created below (slightly different from the one in the lecture slides). Your plot should be in the style of `extracat::visna()` (no longer available on CRAN) using **ggplot2** to create the main plot and two side plots and **patchwork** to put them together. It should show accurately: missing patterns, counts for missing by column and missing by pattern, and make it clear which row respresents complete cases. Bars in the side plots should be sorted and correspond to the rows and columns of the main plot. An example is provided though the aesthetics of your plot do not have to conform precisely to the example. Some code is provided to get you started with finding missing patterns. (Keep in mind that in the next question you will be turning this code into a function so to save yourself time later on write as generically as possible.)
+
+```{r}
+#rm(list = ls())
+library(tidyverse)
+library(patchwork)
+
+# Add NAs to mtcars dataset
+set.seed(5702)
+mycars <- mtcars
+mycars[1:25, "gear"] <- NA
+mycars[10:20, 3:5] <- NA
+for (i in 1:10) mycars[sample(32,1), sample(11,1)] <- NA
+```
+
+**Hints:**
+
+* You can use this code to find and count the missing patterns:
+```{r}
+missing_patterns <- data.frame(is.na(mycars)) %>%
+  group_by_all() %>%
+  count(name = "count", sort = TRUE) %>%
+  ungroup()
+```
+
+* To highlight the complete cases row you need a different fill scale than the one used to show missing vs. non-missing in the main plot (purple and grey in the example). This is a little tricky since you're only allowed one fill scale in **ggplot2**. You can either use `alpha` to control the highlight with `scale_alpha_manual(values = ...)` or use the **ggnewscale** package which provides for multiple fill scales in the same graph.
+
+Answer: 
+
+```{r fig.height = 8, fig.width = 10}
+# Modify missing patterns to generate main graph
+missing_patterns_main <- missing_patterns %>%
+  mutate(id = row_number(), .before = 1) %>%
+  pivot_longer(cols = -c("id", "count"), 
+               names_to = "variables", 
+               values_to = "value") %>%
+  group_by(variables) %>%
+  mutate(var_count = sum(count[value == TRUE])) %>%
+  ungroup() %>%
+  group_by(id) %>%
+  mutate(complete = as.character(ifelse(sum(value) == 0, 1, 0))) %>%
+  ungroup()
+
+# Set colors for main graph (not using defaults)
+tile_colors <- c("grey60", "mediumorchid4")
+
+# Plot main graph
+main_plot <- ggplot(missing_patterns_main, aes(x = reorder(variables, -var_count), 
+                                       y = fct_rev(factor(id)), 
+                                       fill = value, 
+                                       alpha = complete)) + 
+        geom_tile(color = "white", show.legend = FALSE) + 
+        scale_fill_manual(values = tile_colors) + 
+        scale_alpha_manual(values = c("1" = 1, "0" = 0.5)) + 
+        labs(x = "variables", y = "missing pattern") + 
+        theme_bw() + 
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank())
+
+# Find position to label complete cases
+complete_cases <- unique(missing_patterns_main$id[which(missing_patterns_main$complete == "1")])
+x = as.integer(ncol(mycars)/2) + 1
+for (i in complete_cases){
+  y = nrow(missing_patterns) - as.integer(i) + 1
+  main_plot <- main_plot + 
+    geom_text(aes(x, y, label = "complete case"), 
+              size = 10, family = "Times", 
+              show.legend = FALSE)
+}
+
+# Modify missing patterns to generate top graph
+missing_patterns_top <- missing_patterns_main %>%
+  group_by(variables) %>%
+  summarise(missing_rows = sum(count[value == TRUE])) %>%
+  ungroup()
+
+# Plot top graph
+top_plot <- ggplot(missing_patterns_top) + 
+        geom_col(aes(x = reorder(variables, -missing_rows),
+                     y = missing_rows), 
+                 fill = "cornflowerblue") + 
+        scale_y_continuous(breaks = c(0, 20, 10)) + 
+        labs(title = "Missing value patterns", x = "", y = "num rows missing: ") + 
+        theme_bw() + 
+        theme(panel.grid.major.x = element_blank(), 
+              panel.grid.minor.x = element_blank())
+
+# Modify missing patterns to generate right graph
+missing_patterns_right <- missing_patterns %>%
+  mutate(id = row_number(), .before = 1) %>%
+  mutate(complete = as.character(ifelse(rowSums(.[,-count]) == 0, 1, 0))) %>%
+  select(id, count, complete)
+
+# Plot right graph
+right_plot <- ggplot(missing_patterns_right, 
+                     aes(x = count, 
+                         y = fct_rev(factor(id)), 
+                         fill = complete)) + 
+        geom_col() + 
+        scale_fill_manual(values = c("cornflowerblue", "blue")) + 
+        labs(x = "row count", y = "") + 
+        theme_bw() + 
+        theme(panel.grid.major.y = element_blank(), 
+              panel.grid.minor.y = element_blank(), 
+              legend.position = "none")
+
+# Set layout for plots assembly
+layout <- c(area(1, 1, 1, 4), area(2, 1, 5, 4), area(2, 5, 5, 5))
+
+# Assemble graphs
+top_plot + main_plot + right_plot + plot_layout(design = layout)
+```
+
+
+### 2. Missing value plot function
+
+a) Create a function for creating missing plots based on your code from question 1. It should provide an option to show either missing counts or missing percent. The percent option for `mycars` is shown below.
+
+You either put the function code in a separate `.R` file or include it in the `.Rmd` file.
+
+Answer: 
+
+```{r}
+# a) 
+plot_missing <- function(data, percent = TRUE){
+  
+  # Find numbers of columns and rows of the dataset
+  num_rows <- nrow(data)
+  num_cols <- ncol(data)
+  
+  # Find and count the missing patterns
+  missing_patterns <- data.frame(is.na(data)) %>%
+  group_by_all() %>%
+  count(name = "count", sort = TRUE) %>%
+  ungroup()
+  
+  # Modify missing patterns based on the percent option
+  if (percent == TRUE){
+  # Modify missing patterns to generate main graph
+  missing_patterns_main <- missing_patterns %>%
+    mutate(id = row_number(), .before = 1) %>%
+    pivot_longer(cols = -c("id", "count"), 
+                 names_to = "variables", 
+                 values_to = "value") %>%
+    group_by(variables) %>%
+    mutate(var_count = 100 * sum(count[value == TRUE])/num_rows) %>%
+    ungroup() %>%
+    group_by(id) %>%
+    mutate(complete = as.character(ifelse(sum(value) == 0, 1, 0))) %>%
+    ungroup()
+  
+  # Modify missing patterns to generate top graph
+  missing_patterns_top <- missing_patterns_main %>%
+    group_by(variables) %>%
+    summarise(missing_rows = 100 * sum(count[value == TRUE])/num_rows) %>%
+    ungroup()
+  
+  # Modify missing patterns to generate right graph
+  missing_patterns_right <- missing_patterns %>%
+    mutate(id = row_number(), .before = 1) %>%
+    mutate(count = 100 * count/num_rows, 
+           complete = as.character(ifelse(rowSums(.[2:(num_cols + 1)]) == 0, 1, 0))) %>%
+    select(id, count, complete)
+  }
+  
+  else if (percent == FALSE){
+  # Modify missing patterns to generate main graph
+  missing_patterns_main <- missing_patterns %>%
+    mutate(id = row_number(), .before = 1) %>%
+    pivot_longer(cols = -c("id", "count"), 
+                 names_to = "variables", 
+                 values_to = "value") %>%
+    group_by(variables) %>%
+    mutate(var_count = sum(count[value == TRUE])) %>%
+    ungroup() %>%
+    group_by(id) %>%
+    mutate(complete = as.character(ifelse(sum(value) == 0, 1, 0))) %>%
+    ungroup()
+  
+  # Modify missing patterns to generate top graph
+  missing_patterns_top <- missing_patterns_main %>%
+    group_by(variables) %>%
+    summarise(missing_rows = sum(count[value == TRUE])) %>%
+    ungroup()
+  
+  # Modify missing patterns to generate right graph
+  missing_patterns_right <- missing_patterns %>%
+    mutate(id = row_number(), .before = 1) %>%
+    mutate(complete = as.character(ifelse(rowSums(.[2:(num_cols + 1)]) == 0, 1, 0))) %>%
+    select(id, count, complete)
+  }
+  
+  else{
+    print("Wrong data input or inproper argument. Please try again. ")
+  }
+
+  # Set colors for main graph (not using defaults)
+  tile_colors <- c("grey60", "mediumorchid4")
+
+  # Plot main graph
+  main_plot <- ggplot(missing_patterns_main, 
+                      aes(x = reorder(variables, -var_count), 
+                          y = fct_rev(factor(id)), 
+                          fill = value, 
+                          alpha = complete)) + 
+          geom_tile(color = "white", show.legend = FALSE) + 
+          scale_fill_manual(values = tile_colors) + 
+          scale_alpha_manual(values = c("1" = 1, "0" = 0.5)) + 
+          labs(x = "variables", y = "missing pattern") + 
+          theme_bw() + 
+          theme(panel.grid.major = element_blank(),
+                panel.grid.minor = element_blank())
+  
+  # Plot top graph
+  top_plot <- ggplot(missing_patterns_top) + 
+          geom_col(aes(x = reorder(variables, -missing_rows),
+                       y = missing_rows), 
+                   fill = "cornflowerblue") + 
+          labs(title = "Missing value patterns", 
+               x = "") + 
+          theme_bw() + 
+          theme(panel.grid.major.x = element_blank(), 
+                panel.grid.minor.x = element_blank())
+  
+  # Add labels and title of top graph based on the percent option
+  if (percent == TRUE){
+    top_plot <- top_plot + 
+      scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, by = 25))+
+      ylab("% rows missing: ")
+  }
+  else{
+    top_plot <- top_plot + 
+      ylab("num rows missing: ")
+  }
+
+  # Plot right graph
+  right_plot <- ggplot(missing_patterns_right, 
+                       aes(x = count, 
+                           y = fct_rev(factor(id)), 
+                           fill = complete)) + 
+          geom_col() + 
+          scale_fill_manual(values = c("0" = "cornflowerblue", "1" = "blue")) + 
+          ylab("") + 
+          theme_bw() + 
+          theme(panel.grid.major.y = element_blank(), 
+                panel.grid.minor.y = element_blank(), 
+                legend.position = "none")
+  
+  # Add labels and title of right graph based on the percent option
+  if (percent == TRUE){
+    right_plot <- right_plot + 
+      scale_x_continuous(limits = c(0, 100), breaks = seq(0, 100, by = 25)) +
+      xlab("% rows")
+  }
+  else{
+    right_plot <- right_plot + 
+      xlab("row count")
+  }
+  
+  # Find position to label complete cases
+  complete_cases <- unique(missing_patterns_main$id[which(missing_patterns_main$complete == "1")])
+  x = as.integer(ncol(data)/2) + 1
+  for (i in complete_cases){
+    y = nrow(missing_patterns) - as.integer(i) + 1
+    main_plot <- main_plot + 
+      geom_text(aes(x, y, label = "complete case"), 
+                size = 10, family = "Times New Roman", 
+                hjust = 0.6, show_guide = FALSE)
+}
+
+  # Set layout for plots assembly
+  layout <- c(area(1, 1, 1, 4), area(2, 1, 5, 4), area(2, 5, 5, 5))
+
+  # Assemble graphs
+  top_plot + main_plot + right_plot + plot_layout(design = layout)
+}
+```
+
+b) Show the output for both options (counts / percent) for the `economics` dataset in the **ggplot2** package. (This is a test to see if your function works if there are no missing values.)
+
+Answer: 
+
+```{r fig.height = 8, fig.width = 10}
+plot_missing(ggplot2::economics, percent = TRUE)
+plot_missing(ggplot2::economics, percent = FALSE)
+```
+
+c) Show the output for both options (counts / percent) for the `HollywoodMovies2011` dataset in the **Lock5withR** package. You can shorten the column names so they don't overlap in the plot.
+
+Answer: 
+
+```{r fig.height = 8, fig.width = 10}
+HollywoodMovies <- Lock5withR::HollywoodMovies2011
+colnames(HollywoodMovies) <- c("Movie", "Studio", "RT", "AS", "Story", 
+                               "Genre", "TOW", "BOAOW", "DG", "FG", "WG", 
+                               "Budget", "Profit", "OW")
+plot_missing(HollywoodMovies, percent = TRUE)
+plot_missing(HollywoodMovies, percent = FALSE)
+```
+
+
+### 3. Setup your GitHub final project repo
+
+a) Set up your final project repository following the [EDAVproject template](https://github.com/jtr13/EDAVtemplate). You can either choose one team member's GitHub account, or create an organization to house the final project. *Be sure to follow all of the steps in the README so your bookdown book renders with your information, not the placeholders in the template.* Edit the link below to point to your rendered book:
+
+https://robot10235.github.io/plantdata/
+
+b) Make sure that all team members have write access to the repository and have practiced making contributions. Edit the link below to point to your contributors page, showing that all team members have made contributions to the repo (Note that we do not have the ability to see who has write access, only who has contributed):
+
+https://github.com/robot10235/plantdata/graphs/contributors
+
+c) Discuss a plan for dividing up the work for the final project and briefly summarize what each person will do.
+
+Yuning Ding: 
+
+Yuning Ding will be responsible for the chaper 2~4 focusing on data introduction, data cleaning and missing value analysis. It is quite important to purge data to get the most valuable data because the data has lots of useless information. 
+
+Yan Gong: 
+
+Yan Gong will be responsible for the last 3 chapter since he is much familiar with using R to analyze different cases. Although the data is large, it might not have much useful information and the data is related to plants, a quite unfamiliar area for our team. We need his experiences to analyze data professionally. 
+
+
+### 4. Missing values chapter
+
+Write a first draft of the missing values chapter of your final project. You do not have to include all of the data you use in the final project. Choose one file and analyze it using techniques discussed in class for missing values. Include a plot using your function from Q2 as well as verbal interpretation of the plot. Edit this link to point to your chapter:
+
+https://robot10235.github.io/plantdata/missing-values.html

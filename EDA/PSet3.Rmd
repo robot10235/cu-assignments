@@ -1,0 +1,177 @@
+---
+title: "PSet 3"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+# this prevents package loading message from appearing in the rendered version of your problem set
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+Note: Grading is based both on your graphs and verbal explanations. Follow all best practices *as discussed in class*, including choosing appropriate parameters for all graphs. *Do not expect the assignment questions to spell out precisely how the graphs should be drawn. Sometimes guidance will be provided, but the absense of guidance does not mean that all choices are ok.*
+
+Read *Graphical Data Analysis with R*, Chap. 6, 7
+
+```{r}
+library(ggplot2)
+library(readr)
+library(GGally)
+library(Lock5withR)
+library(vcd)
+library(ggalluvial)
+library(parcoords)
+library(dplyr)
+library(forcats)
+```
+
+
+### 1. Crime
+
+[10 points]
+
+Data source: https://data.ny.gov/Public-Safety/Index-Crimes-by-County-and-Agency-Beginning-1990/ca8h-8gjq
+
+You do not need to submit the data with your assignment. You may either download and read from your local copy or read directly from the web site with `df <- read_csv("https://data.ny.gov/api/views/ca8h-8gjq/rows.csv")`.
+
+```{r}
+df <- read_csv("https://data.ny.gov/api/views/ca8h-8gjq/rows.csv")
+```
+
+a) Create a parallel coordinates plot showing the number of crimes in each of the categories listed for 2020. Show actual counts; do not rescale. Your graph should have one line for each county in New York State. (Use `GGally::ggparcoord()`)
+
+```{r}
+crimesin2020 <- subset(df, Year == 2020, select = c(1,5:15))
+crimesin2020 <- crimesin2020 %>%
+                group_by(County, Region) %>%
+                summarize_if(is.numeric, sum)
+
+ggparcoord(crimesin2020, columns=c(5:8, 10:12))
+```
+
+
+b) Now experiment with alpha blending, splines, and rescaling to create the clearest version of the plot that you can. What patterns do you observe? (Use `GGally::ggparcoord()`)
+
+A. We can observe that most of the counties have a very low number of crimes. However some of the counties would have much higer number of crimes, in which `Larceny` is the highest among all crimes, the second one is the `Aggravated Assault`. We can also observe that the proportions of different kinds of crimes in different counties are similar.
+
+```{r}
+new_crimesin2020 <- subset(crimesin2020, select = c(3:12))
+ggparcoord(new_crimesin2020, columns = c(3:6, 8:10), scale="globalminmax", alphaLines = .5, splineFactor = 10) + 
+  geom_vline(xintercept = 1:7, color = "lightblue")
+```
+
+c) Create an interactive parallel coordinates plot of the same data, coloring by `Region`. Discuss outliers, clusters, and correlations in detail.
+
+A: Most of counties in New York has much higher number of crimes than other counties, except Richmond, which has lower number crimes compared to other counties in New York, but it may be still higher than the mode of the number of crimes in counties in non-New York City. In addition, Kings has the most number of crimes compared to other counties. It must be the most dangerous county. We can also observe that most of the counties in non-New York City has much lower number of crimes. But there still exists some dangerous counties like Essex and Suffolk.
+
+```{r}
+parcoords(
+  crimesin2020,
+  color = list(
+    colorScale = "scaleOrdinal",
+    colorBy = "Region",
+    colorScheme = "schemeCategory10"
+  ),
+  withD3 = TRUE,
+  brushMode = '1D-axes',
+  rownames = FALSE,
+  reorderable = TRUE,
+  alphaOnBrushed = 0.2,
+  queue = TRUE
+)
+```
+
+### 2. Sleep
+
+[10 points]
+
+Data: `SleepStudy` from **Lock5withR** package
+
+Draw the following graphs and answer the questions.
+
+a) Is there an association between `ClassYear` and `AnxietyStatus`? Between `ClassYear` and `NumEarlyClass`? Justify your answers with mosaic plots.
+
+A: There is not clear association between `ClassYear` and `AnxietyStatus`. But there is an association between `ClassYear` and `NumEarlyClass`. We can observe `ClassYear` and `AnxietyStatus` mosaic plot and find that the proportion of `ClassYear` in each `AnxietyStatus` are similar. However, the proportion would be quite different in `ClassYear` and `NumEarlyClass` mosaic plot, when `ClassYear` gets higher, `NumEarlyClass` would decrease.
+
+```{r}
+Sleep <- SleepStudy %>%
+          mutate(AnxietyStatus=fct_relevel(AnxietyStatus, "normal"))
+
+mosaic(AnxietyStatus ~ ClassYear, direction = c("v","h"), data = Sleep, highlighting_fill = c("grey80","cornflowerblue", "lightblue") )
+
+mosaic(NumEarlyClass ~ ClassYear, direction = c("v","h"), data = SleepStudy)
+
+```
+
+b) Perform chi square tests to test for associations between the sets of variables graphed in part a). What are the results? Discuss in relation to the mosaic plots.
+
+A: The test results draw similar conclusion to the mosaic plot. The p-value of `ClassYear` and `AnxietyStatus` is much greater than 0.05, and the Chi-squared is very small, so we could not reject the hypothesis that there is no association between `ClassYear` and `AnxietyStatus`.
+The p-value of `ClassYear` and `NumEarlyClass` is much smaller than 0.05 and the Chi-squared is much larger, so we could reject the hypothesis that there is an association between `ClassYear` and `NumEarlyClass`.
+
+
+```{r}
+X <- chisq.test(Sleep$ClassYear, Sleep$AnxietyStatus)
+X
+
+Y <- chisq.test(Sleep$ClassYear, Sleep$NumEarlyClass)
+Y
+```
+
+c) How is the relationship between anxiety status and number of early classes affected by class year? Create a mosaic plot showing all three variables, treating anxiety status as the dependent variable. Discuss the results. 
+
+A: There is a relationship between anxiety status and number of early classes affected by class year. When class year gets higher, the anxiety proportion would be higher with the increase of early classes.
+
+```{r, fig.width=10, fig.height=5}
+vcd::mosaic(Sleep$AnxietyStatus ~ Sleep$NumEarlyClass + Sleep$ClassYear, direction = c("v", "v", "h"))
+```
+
+d) Use the base `pairs()` function to draw a mosaic pairs plot of all all categorical (factor) variables in `SleepStudy`. Based on the plot, list all pairs of variables from strongest association to weakest association. (Note: The **vcd** package must be loaded for `pairs()` to find the correct method.) Name a pair of variables which appear to have a very strong association. Name a pair of variables which appear not to be associated.
+
+A: 
+`AnxietyStatus` and `Stress` appear to have a very strong association.
+`LarkOwl` and `DepressionStatus` appear not to be associated.
+
+```{r, fig.width=20, fig.height=15}
+notnull <- function(x) {
+  if(is.null(x))
+    return(FALSE)
+  return(TRUE)
+}
+
+categories <- attributes(Sleep[sapply(sapply(Sleep, levels), notnull)])$names
+cate_Sleep <- subset(Sleep, select = categories)
+pairs(table(cate_Sleep), highlighting = 2)
+```
+
+### 3. Wait List
+
+[10 points]
+
+The file `stats_wl.csv` contains information about waitlist movement for a Fall 2021 Columbia U undergraduate statistics class.
+
+```{r}
+wait_list <- read.csv("./stats_wl.csv")
+```
+There are 640 rows and 4 variables:
+
+`Name` name of student (actual names were replaced with names generated from the **randomNames** package)
+
+`Date` since SSOL updates overnight, waitlist positions were collected each morning during the change of program period
+
+`Priority` position in waitlist, for example `1` = top position on list
+
+`Status` final outcome, *Registered* = received a place in class and remained; *Dropped Class* = received a place in class and left; *Left List* = left waiting list; *Joined* = remained on waiting list at the end of the change of program period. (Note that the status reflects what ultimately happened, not what the status was on a particular date.)
+
+Create an alluvial diagram that shows waitlist movement during the change of program period. It is not necessary to include the `Name` column in the diagram, but it should be possible to observe movement of individual students: for example, that the student who was 22nd in the waitlist on Sept 9th moved up to 15th place on Sept 16th and then left the list.
+
+```{r, fig.width=10, fig.height=10}
+stats_wl <- read.csv('stats_wl.csv')
+stats_wl <- stats_wl %>%
+  mutate(Priority = formatC(Priority, flag = 0, width = 2)) %>%
+  arrange(Date, Priority)
+
+ggplot(stats_wl, aes(x = Date, stratum = Priority, alluvium = Name, label = Priority, fill = Status)) +
+  geom_flow(stat = "alluvium", color = "darkgrey") +
+  geom_stratum() +
+  geom_text(stat = "alluvium", size = 3)
+```

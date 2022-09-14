@@ -1,0 +1,382 @@
+---
+title: "PSet 2"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+# this prevents package loading message from appearing in the rendered version of your problem set
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+Note: Grading is based both on your graphs and verbal explanations. Follow all best practices *as discussed in class*, including choosing appropriate parameters for all graphs. *Do not expect the assignment questions to spell out precisely how the graphs should be drawn. Sometimes guidance will be provided, but the absense of guidance does not mean that all choices are ok.*
+
+Read *Graphical Data Analysis with R*, Ch. 4, 5
+
+### 1. House features 
+
+[5 points]
+
+Data: *ames* in the **openintro** package
+
+a) Create a frequency bar chart for the roof styles of the properties.
+```{r}
+library(openintro)
+library(tidyverse)
+library(ggh4x)
+library(ggplot2)
+data(ames)
+```
+
+
+```{r}
+ggplot(ames, aes(fct_infreq(Roof.Style))) +
+    geom_bar(fill="cornflowerblue") + 
+    ggtitle("Frequency of different Roof Styles") +
+    xlab("Roof Styles") +
+    ylab("Frequency")
+```
+
+
+b) Create a frequency bar chart for the variable representing the month in which the property was sold.
+```{r}
+ggplot(ames, aes(Mo.Sold)) +
+    geom_bar(fill="cornflowerblue") + 
+    ggtitle("Frequency of house sold in each month") +
+    xlab("Months") + 
+    ylab("Frequency") +
+    scale_x_continuous(name="Months", breaks=seq(from = 1, to = 12, by = 1))
+```
+
+c) List all the factor variables that have `"Ex" "Fa" "Gd" "Po" "TA"` as levels. 
+```{r}
+ames[ames==""]<-NA
+factors <- c("Ex","Fa", "Gd", "Po", "TA")
+find_col <- function(col) {
+  answer <- all(factors%in% col )
+  return(answer)
+}
+var <- attributes(ames[sapply(ames, find_col)])$names
+```
+
+
+```{}
+That question means we should list all factor variables that using `"Ex" "Fa" "Gd" "Po" "TA"` as levels. We should include variables using all those 5 levels as a standard. There are 8 variables in total are using those `"Ex" "Fa" "Gd" "Po" "TA"` as levels:
+```
+
+```{r}
+var
+```
+
+d) Create faceted bar charts using `facet_wrap()` to display the frequency distribution of all variables from part c). (Hint: transform the data first with `pivot_longer()`)
+```{r}
+val_chart <- ames[var] %>%
+ pivot_longer(
+   cols = everything(),
+   names_to = "Vars",
+   values_to = "Type"
+ )
+val_chart$Type <- factor(val_chart$Type, levels = c("Ex", "Gd", "TA", "Fa", "Po", "NA"))
+
+ggplot(val_chart, aes(Type)) +
+    geom_bar(fill="cornflowerblue") + 
+    facet_wrap(~ Vars)+
+    ylab("Frequency")+
+    ggtitle("Frequency of factor appearance")
+
+```
+```{}
+We reorder those levels as they are ordinal values with meaning: Excellent, Great, Typical/Average, Fair, Poor.
+```
+
+### 2. Pet names
+
+[12 points]
+
+Data: *seattlepets* in the **openintro** package
+
+a) Create separate Cleveland dot plots for the 30 most popular dog names and 30 most popular cat names.
+```{r}
+data("seattlepets")
+```
+
+
+
+```{r}
+dogs <- seattlepets %>%
+  filter(species == "Dog") %>%
+  drop_na(animal_name) %>%
+  count(animal_name, sort = TRUE)
+ggplot(head(dogs,30), aes(x= fct_reorder(animal_name, n), y = n)) +
+  coord_flip() +
+  geom_point(color = "blue") +
+  ggtitle("30 most popular dog name") +
+  ylab("Count") +
+  xlab("Names") +
+  theme_linedraw()
+```
+
+```{r}
+cats <- seattlepets %>%
+  filter(species == "Cat") %>%
+  drop_na(animal_name) %>%
+  count(animal_name, sort = TRUE)
+ggplot(head(cats,30), aes(x= fct_reorder(animal_name, n), y = n)) +
+  coord_flip() +
+  geom_point(color = "blue") +
+  ggtitle("30 most popular cat name") +
+  ylab("Count") +
+  xlab("Names") +
+  theme_linedraw()
+```
+
+b) Use a Cleveland dot plot to display the 30 names that are the most "dog" measured by the proportion of all animals with that name that are dogs. (You can remove goat and pig names from the dataset.) *Clearly state any decisions you make about what to include and not include and explain your reasoning.*
+```{r}
+remove_animal <- c("Goat", "Pig")
+dog_proportion <- seattlepets %>%
+  filter(!species %in% remove_animal) %>%
+  drop_na(animal_name) %>%
+  count(animal_name, species, name = "Count") %>%
+  pivot_wider(names_from = species, values_from = Count) %>%
+  mutate(total = Dog+Cat, Dog_proportion = Dog / total) %>%
+  subset(total >= 100)%>%
+  arrange(desc(Dog_proportion))
+
+
+ggplot(head(dog_proportion,30), aes(x= fct_reorder(animal_name, Dog_proportion), y = Dog_proportion)) +
+  coord_flip() +
+  geom_point(color = "blue") +
+  ggtitle("30 most popular name with highest dog proportion with sample size >= 100") +
+  ylab("Dog_Proportion") +
+  xlab("Names") +
+  theme_linedraw()
+```
+```{}
+In this question, we want to find the top 30 names that dog has the most proportion while the sample size for each name is not too small. I first filter out pets with no name as NA. High percentage of NA does not provide any information to audience who want to view the top dog proportion name. I set the constraint when Name appearance is more than 100 then that name has enough sample size to be a candidate to appear in our analysis. 
+```
+
+c) Find the 30 most popular names for dogs and cats combined, and create a multidot Cleveland dot plot showing the counts for dogs, cats, and total for each of these 30 names. (One color for dogs, one color for cats, one color for total.) Order the dots by the total count.
+```{r}
+total_popular <- seattlepets %>%
+  filter(!species %in% remove_animal) %>%
+  drop_na(animal_name) %>%
+  count(animal_name, species, name = "Count") %>%
+  pivot_wider(names_from = species, values_from = Count) %>%
+  mutate(Total = Dog+Cat) %>%
+  arrange(desc(Total)) %>%
+  top_n(30) %>%
+  pivot_longer(cols = c("Cat", "Dog", "Total"),names_to = "Names", values_to = "Count") 
+
+```
+
+```{r}
+ggplot(head(total_popular,90), aes(x= fct_reorder2(animal_name, Names== "Total", Count, .desc= FALSE), y = Count, color = Names)) +
+  coord_flip() +
+  geom_point() +
+  ggtitle("30 most popular names for dogs and cats") +
+  ylab("Count") +
+  xlab("Names") +
+  theme_linedraw()
+```
+
+d) Create a scatterplot of popular cat names vs. popular dog names. Clearly some names are more "dog" names and some are more "cat" names. Decide on a metric for defining what is a "dog" name, a "cat" name, and a "neutral" name and state it explicity. What is your metric?
+```{r}
+dog_vs_cat <- seattlepets %>%
+  filter(!species %in% remove_animal) %>%
+  drop_na(animal_name) %>%
+  count(animal_name, species, name = "Count") %>%
+  pivot_wider(names_from = species, values_from = Count)
+ggplot(dog_vs_cat, aes(Cat, Dog)) + 
+  geom_point(alpha = 0.3, size = 0.5, colour = "black")
+cat_count <- seattlepets %>%
+  filter(species == "Cat") %>%
+  count()
+dog_count <- seattlepets %>%
+  filter(species == "Dog") %>%
+  count()
+cat_dog_ratio <- cat_count$n / dog_count$n
+cat_dog_neutral_matrix <- matrix(c("<=0.4 ",  "0.4-0.6",">=0.6"),ncol=3,byrow=TRUE)
+colnames(cat_dog_neutral_matrix) <- c("Cat","Neutral","Dog")
+rownames(cat_dog_neutral_matrix) <- c("Cat/ (Dog*cat_dog_ratio+Cat)")
+cat_dog_neutral_matrix
+```
+
+```{}
+We have a matric to distinguish cat, neutral, or dog name. We first adjust all the cat vs dog ratio by the amount they appear in our dataset. Then, we set if more than 0.6 proportion pets of the name is cat then that is a cat name. If less than 0.4 proportion pets of the name is cat then that is a dog name. The proportion with a cat proportion lie between 0.4 to 0.6 is called a neutral name. 
+```
+
+e) Create a new variable for type of name ("dog", "cat" or "neutral") and redraw the scatterplot coloring the points by this variable. Label individual points as you see fit (don't label all of them.)
+
+
+```{r}
+d_v_c_matrix <- seattlepets %>%
+  filter(!species %in% remove_animal) %>%
+  drop_na(animal_name) %>%
+  count(animal_name, species, name = "Count") %>%
+  pivot_wider(names_from = species, values_from = Count) %>%
+  replace_na(list(Dog = 0, Cat = 0)) %>%
+  mutate( total = Dog+Cat) %>%
+  arrange(desc(total )) %>% 
+  mutate(pp = Cat / (Dog+Cat) / cat_dog_ratio , name_type = case_when(
+    Cat/ (Dog*cat_dog_ratio+Cat)   >= 0.6 ~ "cat",
+    Cat/ (Dog*cat_dog_ratio+Cat)   <= 0.4 ~ "dog",
+    TRUE ~ "neutral"
+    ))
+```
+
+
+```{r}
+ggplot(d_v_c_matrix) +
+  geom_point(alpha = 0.5, aes(x = Cat, y = Dog, colour = name_type)) +
+  geom_text(aes(102, 317,  label="Lucy")) +
+  geom_text(aes(74, 306,  label="Charlie")) +
+  geom_text(aes(105, 244,  label="Luna")) +
+  geom_text(aes(77, 249, label="Bella")) +
+  geom_text(aes(79,186, label="Max")) +
+  geom_text(aes(55, 6, label="Kitty"))
+
+```
+f) What are your most interesting discoveries from this dataset?
+```{}
+1. In our dataset, there are 35105 dog and 16888 cats with their names. After we balancing the dataset with the ratio of appearence between dog and cat, we could see the graph seperate quiet fairly
+2. There are many cats without names. It seems that people prefer giving names to dogs rather than cats.
+3. Popular names for dogs and cats are similar as the neutral names appear in high frequency for both cat and dog. There are still more cats than do
+```
+
+### 3. House sizes and prices
+
+[6 points]
+
+Data: *ames* in the **openintro** package
+
+For all, adjust parameters to the levels that provide the best views of the data.
+
+Draw four plots of `price` vs. `area` with the following variations:
+
+a) Scatterplot -- adjust point size and `alpha`.
+```{r}
+data(ames)
+ggplot(ames, aes(area, price)) + 
+  geom_point(alpha = 0.2, colour = "blue", size = 0.5)
+```
+```{}
+After several different alpha blending and size reformating, we found that the graph is best when size = 0.5 and the alpha level = 0.2. Those parameter adjustment provides a clear overlapping for cluster area and a clear separation between data points to avoid unwanted overlapping.
+```
+
+b) Scatterplot with density contour lines
+```{r}
+ggplot(ames, aes(area, price)) + 
+  geom_point(alpha = 0.2, colour = "blue", size = 0.5,stroke = 0) +
+  geom_density_2d(aes(color = ..level..))+
+  scale_color_viridis_c(direction = -1)
+```
+```{}
+We could clearly see those lines showing the cluster center where overlapping the most.
+```
+
+c) Hexagonal heatmap of bin counts
+```{r}
+ggplot(ames, aes(area, price))+
+  geom_hex(bins= 40)+ 
+  scale_fill_gradient(low = "lightblue", high = "blue")
+```
+```{}
+The hexagonal heatmaps with bin counts 40 provides the best view of two cluster centers. At bins count of 40, this graph can show two cluster center without being too specific of seperating data into sparse bins.
+```
+
+d) Square heatmap of bin counts
+```{r}
+ggplot(ames, aes(area, price)) + 
+  geom_bin_2d(bins= 40) + 
+  scale_fill_gradient(low = "lightblue", high = "blue")
+```
+```{}
+The square heatmap with bin counts 40 provides the best view of two cluster centers. At bins count of 40, this graph can show two cluster center without being too specific of seperating data into sparse bins. 
+```
+
+e) Describe noteworthy features of the data, using the “Movie ratings” example on page 82 (last page of Section 5.3) as a guide.
+```{}
+1. There is no transaction for a high price with a small area which is in conventional thoughts. (Represented in the left top corner)
+2. There are some transactions occur for area above 4,500 feets that are sold at a low price. We could say those as outlier for analysis in later study and remove those abnormal data. One possibility is those data are sold for industry or farm that with limited construction but ampty area. (Represented in the right bottom corner)
+3. There are also some transactions occur for area above 4,000 and below 4,500 that are sold at a much higher price. Those area are more likely to be built villa with great decoration. (Represented in the top right corner)
+4. Main transactions occur with a smaller area and a lower price. (Represented with highest clustering)
+5. There are two types of clustering that has the most transactions occurs. One around area 1000 feets and 140,000 dollars, the other around 1400 feets and 170,000 dollars. Most people buy housing at those two combinations.
+6. In general, there is a strong relationship between area and price as the larger the area, the higher the price the transaction has. 
+```
+
+### 4. Correlations
+
+[7 points]
+
+Data: *ames* in the **openintro** package
+
+a) Recreate the scatterplot from part 3 (`price` vs. `area`) this time faceting on `Neighborhood` (use `facet_wrap()`. Add best fitting lines and sort the facets by the slope of the best fitting line from low to high. (Use `lm()` to get the slopes.)
+```{r, fig.width=5, fig.height=5}
+ames_neighbor <- ames %>%
+                  group_by(Neighborhood) %>%
+                  do(model = lm(price ~ area, data = .)) %>%
+                  mutate(coef = coef(model)[2]) %>%
+                  arrange(coef)
+
+ames_sort_lm <- ames
+ames_sort_lm$Neighborhood <- factor(ames_sort_lm$Neighborhood, levels = ames_neighbor$Neighborhood)
+ggplot(ames_sort_lm, aes(area, price)) + 
+  geom_point(alpha = 0.2, colour = "black", size = 0.5) + 
+  stat_smooth(method = lm, se = FALSE) +
+  facet_wrap(~Neighborhood, nrow = 7)
+
+```
+
+b) Is the slope higher in neighborhoods with higher mean housing prices? Present graphical evidence and interpret in the context of this data.
+```{r}
+slope_mean <- ames %>%
+  group_by(Neighborhood) %>%
+  summarize(slope=lm(price~area)$coefficients[[2]], mean = mean(price))
+
+ggplot(slope_mean, aes(mean, slope)) +
+  geom_point() + 
+  geom_smooth(method = "lm")
+
+summary(lm(slope_mean$mean ~ slope_mean$slope))['r.squared']
+```
+```{}
+From the slope vs mean graph, we could see that as mean increase the slop also increases. Those two variables have a positive relationship with an $R^2$ value equals to 0.364. Also we could clearly see that most area data lie within the confidence interval of the linear regression. The furthest data is an outlier and is directly removed by the lm function when predicting. 
+There are three area that are not in our model's confidence interval but in general the trend is as mean housing price increases, the slope also increases. That means the more expensive house also has a higher price per feet area. 
+```
+
+c) Repeat parts a) with the following adjustment: order the faceted plots by $R^2$ from the linear regression of `price` on `area` by `Neighborhood`. Is the $R^2$ higher in neighborhoods with higher mean housing prices? Are the results the same for slope and $R^2$? Explain using examples from the graphs.
+```{r, fig.width=5, fig.height=5}
+r2_mean <- ames %>%
+  group_by(Neighborhood) %>%
+  summarize(r2=summary(lm(price~area))[['r.squared']], mean = mean(price))
+
+ames_neighbor <- ames %>%
+                  group_by(Neighborhood) %>%
+                  do(model = lm(price ~ area, data = .)) %>%
+                  mutate(R2 = summary(model)$r.squared) %>%
+                  arrange(R2)
+ames_sort_lm$Neighborhood <- factor(ames_sort_lm$Neighborhood, levels = ames_neighbor$Neighborhood)
+ggplot(ames_sort_lm, aes(area, price)) + 
+  geom_point(alpha = 0.2, colour = "black", size = 0.5) + 
+  stat_smooth(method = lm, se = FALSE) +
+  facet_wrap(~Neighborhood, nrow = 7)
+```
+
+
+```{r}
+ggplot(r2_mean, aes(mean, r2)) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  ylab("R-square value") +
+  xlab("House mean price")
+```
+
+
+```{r}
+summary(lm(r2_mean$mean ~ r2_mean$r2))['r.squared']
+```
+```{}
+From the $R^2$ vs  mean plot, we could see that there is a general increasing trend as the lm fitting line has a positive slope. However, we could clearly see that many data points are out of the confidence intervals which means a high variance. We could see that the R-square value is 0.146 meaning those two variable does not have high dependency. Comparing with the slope vs mean plot, The trend of $R^2$ vs  mean plot is less significant and we could not say as mean housing price increase, the $R^2$ also increase.
+
+```
+
